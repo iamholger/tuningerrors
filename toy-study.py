@@ -378,7 +378,7 @@ if __name__ == "__main__":
 
     # Distribute the bins (objects or whatever you want to call them) amongst the available ranks
     if rank==0:
-        np.random.seed(opts.SEED)
+        np.random.seed(9999)
         xedges, xmids, yvals, yerrs = mkData(opts.NBINS)
         corr = mkCorr(opts.NBINS, opts.CORRMODE)
 
@@ -410,6 +410,7 @@ if __name__ == "__main__":
         if opts.PLOTTOY and not opts.QUIET: plotToyDef(xedges, xmids, yvals, yerrs, corr, YMIN, YMAX, outfname="toy-defn-%i-%s.pdf"%(opts.NBINS, opts.CORRMODE))
 
         # Here we draw samples using the Covariance matrix above
+        np.random.seed(opts.SEED)
         mn = st.multivariate_normal(yvals, C)
         sampledyvals = mn.rvs(size=opts.NSAMPLES)
 
