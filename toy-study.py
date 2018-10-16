@@ -8,12 +8,15 @@ def plotEigenTuneHist(jd, ETS):
     R = [pyrapp.Rapp(r) for r in jd["RAPP"]]
 
 
-    # TUNED = [r(jd["TUNEPARS"])[0] for r in R ]
     TUNED = [r(jd["TUNEPARS"]) for r in R ]
     ETD=[]
     for ET in ETS:
-        # ETD.append([[r(e)[0] for r in R ]    for e in ET])
         ETD.append([[r(e) for r in R ]    for e in ET])
+
+    phibest=jd["WINNERPHI2"]
+    phibestpars = jd["WINNERPARS"]
+
+    W = [r(phibestpars) for r in R]
 
     ERR = np.sqrt(1./np.array(jd["TUNEINVDATACOV"]).reshape((jd["NBINS"],jd["NBINS"])).diagonal())
     YV  = jd["YVALS"]
@@ -23,20 +26,21 @@ def plotEigenTuneHist(jd, ETS):
     plt.style.use('ggplot')
     plt.figure(figsize=(8,8))
     #
-    X= np.array(range(len(YV)))+0.5
+    X = np.array(range(len(YV)))+0.5
     plt.errorbar(X, YV, yerr=ERR, marker="o", linestyle="none", color="k")
     plt.yscale("log")
     plt.xlabel("# Bin")
     plt.ylabel("Entries")
-    plt.plot(X, TUNED, "r-", label="Central tune")
+    plt.plot(X, TUNED, "r-", label="Central tune (%f)"%jd["TUNECHI2"])
 
     etcols=["b", "m"]
     for num, ET in enumerate(ETD):
         plt.plot(X, ET[0], "%s-"%etcols[num], label="ET%i+"%(num+1))
         plt.plot(X, ET[1], "%s--"%etcols[num], label="ET%i-"%(num+1))
 
+    plt.plot(X, W, "g--", label="Phi best(%f)"%phibest)
     plt.legend()
-    plt.ylim((1e-1, 1e2))
+    plt.ylim((100, 580))
     #
     plt.savefig("toy-et-dist-%i-%s.pdf"%(jd["NBINS"], jd["CORRMODE"]))
 
@@ -65,11 +69,11 @@ def eigenDecomposition(mat):
 
     return matrix(T_trans), S.real, matrix(T_trans).transpose()
 
-def mkPlots(jd):
-    plotPhi2(jd["VPHI2"], jd["TUNECHI2"], jd["NDF"], "toy-phi2s-ndf-%i-%s.pdf"%(jd["NBINS"], jd["CORRMODE"]), target=68.8)
+def mkPlots(jd, target):
+    plotPhi2(jd["VPHI2"], jd["TUNECHI2"], jd["NDF"], "toy-phi2s-ndf-%i-%s.pdf"%(jd["NBINS"], jd["CORRMODE"]), target=target)
     plotChi2(jd["VCHI2NAIVE"], jd["VCHI2FULL"], jd["NBINS"], "toy-chi2s-%i-%s.pdf"%(jd["NBINS"], jd["CORRMODE"]))
 
-def getEigentunes(jd, target=68.8):
+def getEigentunes(jd, target):
     nparams = jd["NBINS"] - jd["NDF"]
     Cinv_tune=np.array(jd["TUNEINVPARAMCOV"]).reshape((nparams, nparams))
     Cinv_data=np.array(jd["TUNEINVDATACOV"]).reshape((jd["NBINS"], jd["NBINS"]))
@@ -102,7 +106,7 @@ def plotEigenTunesDist(xedges, xmids, yvals, yerrs, corr, MIN, MAX, outfname="to
     plt.savefig(outfname)
     #plt.show()
 
-def plotPhi2(v_phi2, min_chi2, ndf, f_out, target=68.8):
+def plotPhi2(v_phi2, min_chi2, ndf, f_out, target):
     import scipy.stats as st
     from matplotlib import pyplot as plt
     import matplotlib as mpl
@@ -113,7 +117,7 @@ def plotPhi2(v_phi2, min_chi2, ndf, f_out, target=68.8):
     _x = np.linspace(0, max(v_phi2), 1000)
     plt.plot( _x, st.chi2.pdf(_x, ndf), label=r'$\chi^2(N_{df})=%i$' % (ndf))
     plt.axvline(min_chi2, color="b", label="Tuning")
-    plt.axvline(goftarget, color="k", label="68.8 percentile of $\phi^2$")
+    plt.axvline(goftarget, color="k", label="%.2f-th percentile of $\phi^2$"%target)
     plt.xlabel("$\phi^2$")
     plt.axvline(ndf, label="$N_{df}=%i$"%(ndf))
     plt.legend()
@@ -130,7 +134,7 @@ def plotChi2(v_chi2, v_chi2_full, ndf, f_out):
     plt.hist(v_chi2_full, np.linspace(min(v_chi2_full), max(v_chi2_full)), alpha=0.6, density=True, label="Bootstrapped $\chi^2$ with correlation")
     _x = np.linspace(0, max(v_chi2), 1000)
     plt.plot( _x, st.chi2.pdf(_x, ndf), label=r'$\chi^2(N_{df})=%i$' % (ndf))
-    plt.axvline(opts.NBINS, label="$N_{df}=%i$"%(ndf))
+    plt.axvline(ndf, label="$N_{df}=%i$"%(ndf))
     plt.xlabel("$\chi^2$")
     plt.legend()
     plt.savefig(f_out)
@@ -147,6 +151,8 @@ def plotEigentunes(center, ets, fname):
         plt.plot( [ et[0][0], et[1][0] ], [ et[0][1], et[1][1] ], "ro-" )
 
     plt.axis('equal')
+    plt.xlim((3,8))
+    plt.ylim((5,15))
     plt.xlabel("$p_1$")
     plt.ylabel("$p_2$")
     plt.savefig(fname)
@@ -245,20 +251,21 @@ def plotToyDef(xedges, xmids, yvals, yerrs, corr, MIN, MAX, outfname="toy-defn.p
 
 def mkData(nbins):
     ## Define the toy model
-    xedges = np.linspace(0,100,nbins+1)
+    xedges = np.linspace(0,10,nbins+1)
     xmids = np.convolve(xedges, [0.5,0.5], mode="valid")
-    yvals = 1e4 * (10 + xmids)**-2
+    yvals = 5 * 1e4 * (10 + xmids)**-2
     yerrs = np.sqrt(yvals)
 
     return xedges, xmids, yvals, yerrs
+
+def mkSignal2d(p, xmids):
+    yvals = p[0] * 1e4 * (p[1] + xmids)**-2
+    return yvals
 
 def mkSignal(p, xmids):
     yvals = p[0] * 1e4 * (p[1] + xmids)**p[2]
     return yvals
 
-def mkSignal2d(p, xmids):
-    yvals = p[0] * 1e4 * (p[1] + xmids)**-2
-    return yvals
 
 def mkCorr(nbins, corrmode):
     corr = np.eye(nbins)
@@ -331,22 +338,24 @@ if __name__ == "__main__":
     import optparse, os, sys
     op = optparse.OptionParser(usage=__doc__)
     op.add_option("-v", "--debug", dest="DEBUG", action="store_true", default=False, help="Turn on some debug messages")
-    op.add_option("-q", "--quiet", dest="QUIET", action="store_true", default=False, help="Turn off messages")
+    op.add_option("-q", "--quiet", dest="QUIET", action="store_true", default=False, help="Turn off messages and plotting")
     op.add_option("-p", "--plottoy", dest="PLOTTOY", action="store_true", default=False, help="Plot the toy definition (default: %default)")
     op.add_option("-n", dest="NSAMPLES", type=int, default=1000, help="Number of samples (default: %default)")
     op.add_option("-b", dest="NBINS", type=int, default=20, help="Number of bins (default: %default)")
     op.add_option("-s", dest="NSIGNAL", type=int, default=20, help="Number of signals to sample for parameterisation (default: %default)")
     op.add_option("-c", dest="CORRMODE", default="sane", help="Correlation mode --- none | sane | mad (default: %default)")
     op.add_option("-o", dest="OUT", default="phi2.json", help="Output file for stats (default: %default)")
+    op.add_option("-t", dest="TARGET", default=95, type=float, help="G.o.F target percentile (default: %default)")
+    op.add_option("--seed", dest="SEED", type=int, default=12345, help="Random seed (default: %default)")
     opts, args = op.parse_args()
 
     if len(args)==1:
         import json
         with open(args[0]) as f:
             jd = json.load(f)
-        mkPlots(jd)
+        mkPlots(jd, opts.TARGET)
 
-        ETS, AX = getEigentunes(jd, target=68.8)
+        ETS, AX = getEigentunes(jd, target=opts.TARGET)
         # This plots the et axes
         plotEigentunes(jd["TUNEPARS"], ETS, "toy-et-def-%i-%s.pdf"%(jd["NBINS"], jd["CORRMODE"]))
 
@@ -369,8 +378,10 @@ if __name__ == "__main__":
 
     # Distribute the bins (objects or whatever you want to call them) amongst the available ranks
     if rank==0:
+        np.random.seed(opts.SEED)
         xedges, xmids, yvals, yerrs = mkData(opts.NBINS)
         corr = mkCorr(opts.NBINS, opts.CORRMODE)
+
         C = mkCov(yerrs, opts.CORRMODE)
         # We need to occasionally deal with 
         #      ValueError: the input matrix must be positive semidefinite
@@ -381,19 +392,29 @@ if __name__ == "__main__":
 
         import scipy.stats as st
         # Get a once smeared sample to be used as toy data # NOTE this requires a factor two in phi2 later
-        yvals =  st.multivariate_normal(yvals, C).rvs(size=1)
+        _yvals=np.ones(opts.NBINS)*-1
+        while any([y<0 for y in _yvals]):
+            _yvals =  st.multivariate_normal(yvals, C).rvs(size=1)
+        yvals=_yvals
+        yerrs = np.array([np.sqrt(y) for y in yvals])
+        # Also get the sample covariance matrix based on the sample errors
+        C = mkCov(yerrs, opts.CORRMODE)
+        min_eig = np.min(np.real(np.linalg.eigvals(C)))
+        if min_eig < 0:
+            C -= 10*min_eig * np.eye(*C.shape)
 
-        ranges = [(0, 4.0), (0, 20)]#, (-2.2, -1.9)]
+        ranges = [(3.0, 8.0), (5, 15)]#, (-2.2, -1.9)]
         R, YMIN, YMAX = mkParameterisations(xmids, ranges, opts.NSIGNAL, order=(2,2))
 
         # This plots the toy definition
-        if opts.PLOTTOY: plotToyDef(xedges, xmids, yvals, yerrs, corr, YMIN, YMAX, outfname="toy-defn-%i-%s.pdf"%(opts.NBINS, opts.CORRMODE))
+        if opts.PLOTTOY and not opts.QUIET: plotToyDef(xedges, xmids, yvals, yerrs, corr, YMIN, YMAX, outfname="toy-defn-%i-%s.pdf"%(opts.NBINS, opts.CORRMODE))
 
         # Here we draw samples using the Covariance matrix above
         mn = st.multivariate_normal(yvals, C)
         sampledyvals = mn.rvs(size=opts.NSAMPLES)
 
         # This is the covariance matrix without correlations and WITHOUT the additional factor of sqrt(2)
+        Cinv =  np.linalg.inv(C)
         Cinvchi2 = np.diag([1./(e**2) for e in yerrs])
 
         def chi2(datavals, modelvals, ivariance):
@@ -405,14 +426,14 @@ if __name__ == "__main__":
         for i in range(opts.NSAMPLES):
             c2s_naive[i] = chi2(yvals, sampledyvals[i], Cinvchi2)
 
-        Cinv =  np.linalg.inv(C)
         c2s_full = np.empty([opts.NSAMPLES,1])
         for i in range(opts.NSAMPLES):
             c2s_full[i] = chi2(yvals, sampledyvals[i], Cinv)
 
         # This is the covariance matrix without correlations but WITH that extra factor of sqrt(2) --- to be used when doing the
         # bootstrapping
-        Cinvtrivial = np.diag([1./(np.sqrt(2)*e**2) for e in yerrs])
+        Cinvtrivial = np.diag([1./(2*e**2) for e in yerrs])
+        # Cinvtrivial = np.diag([1./(np.sqrt(2)*e**2) for e in yerrs])
 
         allJobs=chunkIt(range(opts.NSAMPLES), size) # A list of lists of approximately the same length
 
@@ -435,18 +456,32 @@ if __name__ == "__main__":
 
     # This is the bootstrapping
     restrivial = []
+    minPhi2 = 1e11
+    minP=[]
     from scipy import optimize
     for num, sv in enumerate(sampledyvals[rankJobs]):
-        restrivial.append(optimize.minimize(lambda x:chi2wCov(sv, R, Cinvtrivial,x), center, bounds=box)["fun"])
+        minres=optimize.minimize(lambda x:chi2wCov(sv, R, Cinvtrivial,x), center, bounds=box)
+        restrivial.append(minres["fun"])
+        if minres["fun"] < minPhi2:
+            minPhi2 = minres["fun"]
+            minP = minres["x"]
         if num%100 == 0 and rank==0: print("[{}] Done with {}/{}".format(rank, num, len(rankJobs)))
 
     comm.Barrier()
 
     # Collective operation --- gather all information on rank 0 for plotting etc.
     outputtrivial = comm.gather(restrivial, root=0)
+    allminPhi2    = comm.gather(minPhi2, root=0)
+    allminP       = comm.gather(minP, root=0)
 
     if rank==0:
         ALL = [item for sublist in outputtrivial for item in sublist]
+
+        winner = allminPhi2.index(min(allminPhi2))
+        winnerP = allminP[winner]
+
+        # from IPython import embed
+        # embed()
 
         # This is the tuning main minimisation --- note that this uses the covariance WITHOUT sqrt(2)
         Cinv_phi2 = np.diag([1./e**2 for e in yerrs])
@@ -459,6 +494,8 @@ if __name__ == "__main__":
                 "NDF"        : opts.NBINS-2, # TODO eventually nparams
                 "TUNECHI2"   : MIN_tune["fun"],
                 "TUNEPARS"   : list(MIN_tune["x"].ravel()),
+                "WINNERPARS"   : list(winnerP),
+                "WINNERPHI2"   : min(allminPhi2),
                 "TUNEINVDATACOV" : list(Cinv_phi2.ravel()),
                 "TUNEINVPARAMCOV" : list(Cinv_tune.ravel()),
                 "VCHI2NAIVE" : list(c2s_naive.ravel()),
@@ -468,12 +505,13 @@ if __name__ == "__main__":
                 "YVALS": list(yvals)
                 }
 
-        mkPlots(jd)
+        if not opts.QUIET: mkPlots(jd, opts.TARGET)
         import json
         with open(opts.OUT, "w") as f:
             json.dump(jd  ,f)
 
-        ETs, AX = getEigentunes(jd)
-        plotEigentunes(jd["TUNEPARS"], ETs, "toy-et-def-%i-%s.pdf"%(jd["NBINS"], jd["CORRMODE"]))
-        plotEigenTuneHist(jd, ETs)
+        if not opts.QUIET:
+            ETs, AX = getEigentunes(jd, opts.TARGET)
+            plotEigentunes(jd["TUNEPARS"], ETs, "toy-et-def-%i-%s.pdf"%(jd["NBINS"], jd["CORRMODE"]))
+            plotEigenTuneHist(jd, ETs)
 
