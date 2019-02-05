@@ -1,0 +1,16 @@
+I used pythia8240 with pythia8-diy:0.6.7 at nersc.
+
+Setup: 2 nodes, i.e. 128 ranks per parameter point,
+accumulating 1.28M events per point or 10k events per rank.
+
+Everything is based on Monash 13.
+
+The runcard template is in templates.
+
+Sampling:
+    cd templates
+    prof2-sample mb.ranges -t mb7tev.cmd -o ../scan -n 1000
+
+The finished runs are in the tarball done.tar.gz.
+
+The corresponding hdf5 representation is in mc.hdf5.
