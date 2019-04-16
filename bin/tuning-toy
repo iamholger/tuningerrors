@@ -4,7 +4,7 @@ import numpy as np
 
 from tuningerrors import ellipsis
 
-def plotEigenTuneHist2(jd, xmids, central, ETs, truth):
+def plotEigenTuneHist2(jd, xmids, central, ETs, truth, plot_prefix=""):
 
     TUNED = np.array(mkSignal2d(central, xmids))
     ETD = [
@@ -54,7 +54,7 @@ def plotEigenTuneHist2(jd, xmids, central, ETs, truth):
     plt.legend()
     plt.ylim((100, 580))
     #
-    plt.savefig("supercool-%i-%s.pdf"%(jd["NBINS"], jd["CORRMODE"]))
+    plt.savefig("result-%s-%i-%s.pdf"%(plot_prefix, jd["NBINS"], jd["CORRMODE"]))
 
 
 def plotPhi2(v_phi2, min_chi2, ndf, f_out, target):
@@ -205,6 +205,7 @@ if __name__ == "__main__":
     op.add_option("-v", "--debug", dest="DEBUG", action="store_true", default=False, help="Turn on some debug messages")
     op.add_option("-q", "--quiet", dest="QUIET", action="store_true", default=False, help="Turn off messages and plotting")
     op.add_option("-p", "--plottoy", dest="PLOTTOY", action="store_true", default=False, help="Plot the toy definition (default: %default)")
+    op.add_option("--plotprefix", dest="PLOTPREFIX", default="toy6", help="Plot prefix (default: %default)")
     op.add_option("-n", dest="NSAMPLES", type=int, default=1000, help="Number of samples (default: %default)")
     op.add_option("-b", dest="NBINS", type=int, default=20, help="Number of bins (default: %default)")
     op.add_option("-s", dest="NSIGNAL", type=int, default=20, help="Number of signals to sample for parameterisation (default: %default)")
@@ -349,7 +350,7 @@ if __name__ == "__main__":
         # Sample covariance in param space and ET construction
         # COV_sample     = np.cov(np.array(ALLP).T)
         # COV_sample_inv = np.linalg.inv(COV_sample)
-        ET, CTR = ellipsis.construct(ALLP, plot_prefix="toy6")
+        ET, CTR = ellipsis.construct(ALLP, plot_prefix=opts.PLOTPREFIX, percentile=float(opts.TARGET))
 
 
         winner  = allminPhi2.index(min(allminPhi2))
@@ -383,4 +384,4 @@ if __name__ == "__main__":
 
         oo = MIN_tune["x"]
 
-        plotEigenTuneHist2(jd, xmids, oo, ET, truth)
+        plotEigenTuneHist2(jd, xmids, oo, ET, truth, plot_prefix=opts.PLOTPREFIX)

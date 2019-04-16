@@ -3,7 +3,6 @@
 import numpy as np
 import scipy.stats as st
 
-np.random.seed(1000)
 
 def rdmCircle(rho=1):
     """
@@ -116,8 +115,8 @@ if __name__ == "__main__":
     PERC = float(sys.argv[2])
     prefix = sys.argv[3]
 
-    # Randomly sample points in a circle
     np.random.seed(1000)
+    # Randomly sample points in a circle
     C = np.array([rdmCircle(np.random.rand()) for _ in range(NP)])
     plotScatter(C, "{}_Rcircle.pdf".format(prefix))
 
