@@ -11,7 +11,7 @@ setup(
   install_requires = [
     'numpy',
     'scipy',
-    'pyrapp',
+    #'pyrapp',
     'mpi4py',
     'matplotlib'
   ],

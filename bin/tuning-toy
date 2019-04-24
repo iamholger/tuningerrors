@@ -197,8 +197,9 @@ def chi2wCov(DV, R, InvCov, x):
     diff = DV - np.array(I)
     return sum(diff*InvCov.diagonal()*(diff))
 
+
+
 if __name__ == "__main__":
-    print("Start")
 
     import optparse, os, sys
     op = optparse.OptionParser(usage=__doc__)
@@ -215,7 +216,6 @@ if __name__ == "__main__":
     op.add_option("--seed", dest="SEED", type=int, default=12345, help="Random seed (default: %default)")
     opts, args = op.parse_args()
 
-
     rank=0
     size=1
     try:
@@ -227,6 +227,9 @@ if __name__ == "__main__":
         print("Exception when trying to import mpi4py:", e)
         pass
 
+    if rank == 0:
+        print("Start")
+
     # Distribute the bins (objects or whatever you want to call them) amongst the available ranks
     if rank==0:
         import time
@@ -237,7 +240,7 @@ if __name__ == "__main__":
         truth=yvals
 
         C = mkCov(yerrs, opts.CORRMODE)
-        # We need to occasionally deal with 
+        # We need to occasionally deal with
         #      ValueError: the input matrix must be positive semidefinite
         # https://stackoverflow.com/questions/41515522/numpy-positive-semi-definite-warning
         min_eig = np.min(np.real(np.linalg.eigvals(C)))
@@ -258,16 +261,18 @@ if __name__ == "__main__":
             C -= 10*min_eig * np.eye(*C.shape)
 
         te = time.time()
-        print("Data generation took {} seconds".format(te-ts))
+        print("Data generation took {:2.2f} seconds".format(te-ts))
+
 
         ts=time.time()
         ranges = [(3.0, 8.0), (5, 15)]#, (-2.2, -1.9)]
         R, YMIN, YMAX = mkParameterisations(xmids, ranges, opts.NSIGNAL, order=(0,0))
         te = time.time()
-        print("Parameterisation took {} seconds".format(te-ts))
+        print("Parameterisation took {:2.2f} seconds".format(te-ts))
 
         # This plots the toy definition
-        if opts.PLOTTOY and not opts.QUIET: plotToyDef(xedges, xmids, yvals, yerrs, corr, YMIN, YMAX, outfname="toy-defn-%i-%s.pdf"%(opts.NBINS, opts.CORRMODE))
+        if opts.PLOTTOY and not opts.QUIET:
+            plotToyDef(xedges, xmids, yvals, yerrs, corr, YMIN, YMAX, outfname="toy-defn-%i-%s.pdf"%(opts.NBINS, opts.CORRMODE))
 
         ts=time.time()
         # Here we draw samples using the Covariance matrix above
@@ -296,7 +301,7 @@ if __name__ == "__main__":
         Cinvtrivial = np.diag([1./(2*e**2) for e in yerrs])
         # Cinvtrivial = np.diag([1./(np.sqrt(2)*e**2) for e in yerrs])
         te = time.time()
-        print("Bootstrapping data took {} seconds".format(te-ts))
+        print("Bootstrapping data took {:2.2f} seconds".format(te-ts))
 
         allJobs=chunkIt(range(opts.NSAMPLES), size) # A list of lists of approximately the same length
 
@@ -333,7 +338,8 @@ if __name__ == "__main__":
         if minres["fun"] < minPhi2:
             minPhi2 = minres["fun"]
             minP = minres["x"]
-        if num%100 == 0 and rank==0: print("[{}] Done with {}/{}".format(rank, num, len(rankJobs)))
+        if num%100 == 0: #and rank==0:
+            print("[{}] Done with {}/{}".format(rank, num, len(rankJobs)))
 
     comm.Barrier()
 
