@@ -360,6 +360,9 @@ if __name__ == "__main__":
 
 
         winner  = allminPhi2.index(min(allminPhi2))
+        winner2  = np.argmin(allminPhi2)
+        print(winner, winner2)
+        assert winner == winner2
         winnerP = allminP[winner]
 
 
