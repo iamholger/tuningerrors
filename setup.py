@@ -15,7 +15,7 @@ setup(
     'mpi4py',
     'matplotlib'
   ],
-  scripts=['bin/tuning-toy'],
+  scripts=['bin/te-toy'],
   extras_require = {
   },
   entry_points = {
