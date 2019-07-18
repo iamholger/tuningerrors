@@ -55,6 +55,7 @@ def plotEigenTuneHist2(jd, xmids, central, ETs, truth, plot_prefix=""):
     plt.ylim((100, 580))
     #
     plt.savefig("result-%s-%i-%s.pdf"%(plot_prefix, jd["NBINS"], jd["CORRMODE"]))
+    plt.close()
 
 
 def plotPhi2(v_phi2, min_chi2, ndf, f_out, target):
@@ -75,6 +76,7 @@ def plotPhi2(v_phi2, min_chi2, ndf, f_out, target):
     plt.axvline(ndf, label="$N_{df}=%i$"%(ndf))
     plt.legend()
     plt.savefig(f_out)
+    plt.close()
 
 
 def plotChi2(v_chi2, v_chi2_full, ndf, f_out):
@@ -91,6 +93,7 @@ def plotChi2(v_chi2, v_chi2_full, ndf, f_out):
     plt.xlabel("$\chi^2$")
     plt.legend()
     plt.savefig(f_out)
+    plt.close()
 
 
 
@@ -102,7 +105,7 @@ def plotToyDef(xedges, xmids, yvals, yerrs, corr, MIN, MAX, outfname="toy-defn.p
     plt.figure(figsize=(14,5))
     #
     plt.subplot(121)
-    plt.fill_between(xmids, MIN, MAX)
+    plt.fill_between(xmids, MIN, MAX, color="pink")
     plt.errorbar(xmids, yvals, xerr=xedges[1:]-xmids, yerr=yerrs, marker="o", linestyle="none", color="k")
     plt.yscale("log")
     plt.xlabel("Observable")
@@ -115,22 +118,22 @@ def plotToyDef(xedges, xmids, yvals, yerrs, corr, MIN, MAX, outfname="toy-defn.p
     #
     plt.savefig(outfname)
     #plt.show()
+    plt.close()
 
 def mkData(nbins):
     ## Define the toy model
     xedges = np.linspace(0,10,nbins+1)
     xmids = np.convolve(xedges, [0.5,0.5], mode="valid")
-    yvals = 5 * 1e4 * (10 + xmids)**-2
+    yvals = 5 * 1e-1 * (10 + xmids)**-2  #< TODO!!!! This is not a polynomial model!!! Is this a Pade test?
     yerrs = np.sqrt(abs(yvals))
-
     return xedges, xmids, yvals, yerrs
 
 def mkSignal2d(p, xmids):
-    yvals = p[0] * 1e4 * (p[1] + xmids)**-2
+    yvals = p[0] * 1e-1 * (p[1] + xmids)**-2
     return yvals
 
 def mkSignal(p, xmids):
-    yvals = p[0] * 1e4 * (p[1] + xmids)**p[2]
+    yvals = p[0] * 1e-1 * (p[1] + xmids)**p[2]
     return yvals
 
 
@@ -252,13 +255,16 @@ if __name__ == "__main__":
         _yvals=np.ones(opts.NBINS)*-1
         #while any([y<0 for y in _yvals]):
         _yvals =  st.multivariate_normal(yvals, C).rvs(size=1)
+        yvals_true = yvals
         yvals=_yvals
         yerrs = np.array([np.sqrt(abs(y)) for y in yvals])
+        yerrs_true = np.array([np.sqrt(abs(y)) for y in yvals_true])
         # Also get the sample covariance matrix based on the sample errors
         C = mkCov(yerrs, opts.CORRMODE)
         min_eig = np.min(np.real(np.linalg.eigvals(C)))
         if min_eig < 0:
             C -= 10*min_eig * np.eye(*C.shape)
+        #print(C)
 
         te = time.time()
         print("Data generation took {:2.2f} seconds".format(te-ts))
@@ -296,10 +302,9 @@ if __name__ == "__main__":
         for i in range(opts.NSAMPLES):
             c2s_full[i] = chi2(yvals, sampledyvals[i], Cinv)
 
-        # This is the covariance matrix without correlations but WITH that extra factor of sqrt(2) --- to be used when doing the
-        # bootstrapping
+        # This is the covariance matrix without correlations but WITH that extra factor of sqrt(2)
+        # --- to be used when doing the bootstrapping
         Cinvtrivial = np.diag([1./(2*e**2) for e in yerrs])
-        # Cinvtrivial = np.diag([1./(np.sqrt(2)*e**2) for e in yerrs])
         te = time.time()
         print("Bootstrapping data took {:2.2f} seconds".format(te-ts))
 
@@ -327,6 +332,7 @@ if __name__ == "__main__":
     # This is the bootstrapping
     restrivial = []
     minPhi2 = 1e11
+    allPhi2 = []
     minP=[]
     allP=[]
     from scipy import optimize
@@ -335,6 +341,7 @@ if __name__ == "__main__":
         minres=optimize.minimize(lambda x:chi2wCov(sv, xmids, Cinvtrivial,x), center, bounds=box)
         restrivial.append(minres["fun"])
         allP.append(minres["x"])
+        allPhi2.append(minres["fun"])
         if minres["fun"] < minPhi2:
             minPhi2 = minres["fun"]
             minP = minres["x"]
@@ -347,6 +354,7 @@ if __name__ == "__main__":
     outputtrivial = comm.gather(restrivial, root=0)
     allminPhi2    = comm.gather(minPhi2, root=0)
     allminP       = comm.gather(minP, root=0)
+    allallPhi2    = comm.gather(allPhi2, root=0)
     allallP       = comm.gather(allP, root=0)
 
     if rank==0:
@@ -358,13 +366,19 @@ if __name__ == "__main__":
         # COV_sample_inv = np.linalg.inv(COV_sample)
         ET, CTR = ellipsis.construct(ALLP, plot_prefix=opts.PLOTPREFIX, percentile=float(opts.TARGET))
 
+        iwin  = np.argmin(allminPhi2)
+        winnerP = allminP[iwin]
+        winnerPhi2 = allminPhi2[iwin]
 
-        winner  = allminPhi2.index(min(allminPhi2))
-        winner2  = np.argmin(allminPhi2)
-        print(winner, winner2)
-        assert winner == winner2
-        winnerP = allminP[winner]
-
+        import matplotlib.pyplot as plt
+        plt.figure()
+        plt.hist(np.array(allallPhi2).flatten()/2., 100, density=True, color="red")
+        plt.axvline(winnerPhi2, c="black")
+        xchi2 = np.linspace(0, 20, 200)
+        fchi2 = 2*st.chi2.pdf(2*xchi2, opts.NBINS)
+        plt.plot(xchi2, fchi2, color="blue")
+        plt.savefig(opts.PLOTPREFIX+"_phi2.pdf")
+        plt.close()
 
         # This is the tuning main minimisation --- note that this uses the covariance WITHOUT sqrt(2)
         Cinv_phi2 = np.diag([1./e**2 for e in yerrs])
