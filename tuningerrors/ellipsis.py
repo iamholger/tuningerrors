@@ -72,7 +72,7 @@ def construct(PTS, CTR=None, COV=None, plot_prefix=None, percentile=68):
 
     # Eigentune coordinates in the unit sphere world
     dim=len(S)
-    UET = intercept*np.append(-np.eye(dim), np.eye(dim), axis=1).reshape((2*dim,2))
+    UET = intercept*np.append(-np.eye(dim), np.eye(dim), axis=1).reshape((2*dim,dim))
 
     # Note that we now need to apply the inverse transforms to get the real world coordinates
 
