@@ -42,6 +42,7 @@ def mkModel(xmids, ps):
 
 
 def chi2(datavals, modelvals, invcov):
+    #print(datavals.shape, modelvals.shape)
     diff = datavals - modelvals
     #return sum(diff*invcov.diagonal()*diff)
     #return np.atleast_2d(diff).T @ invcov @ diff
@@ -60,31 +61,47 @@ ap.add_argument("-C", "--corrmode", dest="CORRMODE", default="sane")
 ap.add_argument("-c", "--corrchi2", dest="CORRCHI2", action="store_true", default=False)
 ap.add_argument("--chi2bins", dest="NCHI2BINS", type=int, default=50)
 ap.add_argument("--databins", dest="NDATABINS", type=int, default=20)
+ap.add_argument("--resample-data", dest="RESAMPLE_DATA", action="store_true", default=False)
 args = ap.parse_args()
 
-## Make pseudodata and correlations
+
+## Make perfect pseudodata and correlations
 xedges, xmids, datavals, dataerrs, datacov = mkData(args.NDATABINS, args.CORRMODE)
-invcov = np.linalg.inv(datacov) if args.CORRCHI2 else np.diag(np.reciprocal(dataerrs**2))
+np.random.seed(12345)
+
+## Smear once, from the perfect distribution and with the true covariance
+mn1 = st.multivariate_normal(datavals, datacov)
+if args.RESAMPLE_DATA:
+    datavals_smear1 = mn1.rvs(size=args.NITERS)
+else:
+    datavals_smear1 = np.tile(mn1.rvs(size=1), (args.NITERS,1))
+#print(datavals_smear1)
 
 ## Fit nominal
 chi2s, chi2s_fit, fitdata = [], [], []
-optres = opt.minimize(lambda ps: chi2FromParams(datavals, xmids, ps, invcov), [1.,1.])
-fitdata.append([optres.fun, optres.x])
+invcov = np.linalg.inv(datacov) if args.CORRCHI2 else np.diag(np.reciprocal(dataerrs**2))
+chi2s.append(chi2(datavals, datavals_smear1[0], invcov))
+optres1 = opt.minimize(lambda ps: chi2FromParams(datavals_smear1[0], xmids, ps, invcov), [5.,10.])
+chi2s_fit.append(optres1.fun)
+fitdata.append([optres1.fun, optres1.x])
 
 ## Bootstrap and re-fit
-mn = st.multivariate_normal(datavals, datacov)
+# TODO: convert to depend on bootstrap chi2 procedure
+#mn2 = st.multivariate_normal(datavals_smear1, datacov)
 for n in range(args.NITERS):
+    mn2 = st.multivariate_normal(datavals_smear1[n], datacov)
     if (n+1) % 1000 == 0:
         print("Iteration #{}".format(n+1))
-    datavals_smear = mn.rvs(size=1)
-    #datavals_smear = datavals + st.norm.rvs(0, dataerrs)
-    dataerrs_smear = np.sqrt(abs(datavals_smear))
+    datavals_smear2 = mn2.rvs(size=1)
+    #dataerrs_smear2 = np.sqrt(abs(datavals_smear2))
     #invcov = np.diag(np.reciprocal(dataerrs_smear**2))
-    # TODO: FACTOR OF 2?
-    chi2s.append(chi2(datavals, datavals_smear, 2*invcov))
-    optres = opt.minimize(lambda ps: chi2FromParams(datavals_smear, xmids, ps, 2*invcov), [1.,1.])
-    chi2s_fit.append(optres.fun)
-    fitdata.append([optres.fun, optres.x])
+    chi2s.append(chi2(datavals, datavals_smear2, 0.5*invcov))
+    #chi2s.append(chi2(datavals_smear1, datavals_smear2, 2*0.5*invcov))
+
+    optres2 = opt.minimize(lambda ps: chi2FromParams(datavals_smear2, xmids, ps, 0.5*invcov), [5.,10.])
+    chi2s_fit.append(optres2.fun)
+    fitdata.append([optres2.fun, optres2.x])
+
 xchi2s = np.linspace(0, 2.5*args.NDATABINS, 100)
 xchi2bins = np.linspace(0, 2.5*args.NDATABINS, args.NCHI2BINS)
 
@@ -107,11 +124,16 @@ with open("simplebootstrap.dat", "w") as out:
 ## Plot
 import matplotlib.pyplot as plt
 plt.savefigs = lambda name : [plt.savefig(name+ext, dpi=150) for ext in [".pdf", ".png"]]
-plt.hist(chi2s, bins=xchi2bins, density=True, label="Smear only", alpha=0.7)
-plt.hist(chi2s_fit, bins=xchi2bins, density=True, label="Smear+fit", alpha=0.7)
-plt.plot(xchi2s, [st.chi2.pdf(x, args.NDATABINS) for x in xchi2s], label=r"$\chi^2(k = N_\mathrm{bin})$")
-plt.plot(xchi2s, [st.chi2.pdf(x, args.NDATABINS-2) for x in xchi2s], label=r"$\chi^2(k = N_\mathrm{bin}-2)$")
+plt.axvline(chi2s[0], ls="--", color="darkblue", alpha=0.7)
+plt.hist(chi2s[1:], bins=xchi2bins, density=True, histtype="stepfilled",
+         color="aliceblue", edgecolor="darkblue", hatch="", label="Smear only", alpha=0.7)
+plt.axvline(chi2s_fit[0], ls="--", color="darkred", alpha=0.7)
+plt.hist(chi2s_fit[1:], bins=xchi2bins, density=True, histtype="stepfilled",
+         color="mistyrose", edgecolor="darkred", hatch=r"", label="Smear+fit", alpha=0.7)
+plt.plot(xchi2s, [st.chi2.pdf(x, args.NDATABINS) for x in xchi2s], color="darkblue", label=r"$\chi^2(k = N_\mathrm{bin})$")
+plt.plot(xchi2s, [st.chi2.pdf(x, args.NDATABINS-2) for x in xchi2s], color="darkred", label=r"$\chi^2(k = N_\mathrm{bin}-2)$")
 plt.xlabel(r"$\phi^2$")
+plt.xlim(0, 2.5*args.NDATABINS)
 plt.legend()
 plt.savefigs("simplechi2")
 plt.show()
